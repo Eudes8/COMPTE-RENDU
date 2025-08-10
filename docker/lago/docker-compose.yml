@@ -1,0 +1,105 @@
+# /docker/lago/docker-compose.yml
+# Configuration simplifiée pour Lago - un service de facturation open-source.
+# Cette version est adaptée pour le développement local au sein du projet AUTOMATIC.
+
+version: '3.8'
+
+services:
+  # Base de données PostgreSQL pour Lago
+  db:
+    image: postgres:14-alpine
+    container_name: automatic_lago_db
+    restart: unless-stopped
+    ports:
+      # Port 5433 exposé sur l'hôte pour éviter les conflits avec d'autres instances Postgres
+      - "5433:5432"
+    volumes:
+      - lago_postgres_data:/data/postgres
+    environment:
+      POSTGRES_DB: lago_development
+      POSTGRES_USER: lago
+      POSTGRES_PASSWORD: password
+      PGDATA: /data/postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lago -d lago_development -h localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cache Redis pour Lago
+  redis:
+    image: redis:6-alpine
+    container_name: automatic_lago_redis
+    restart: unless-stopped
+    volumes:
+      - lago_redis_data:/data
+
+  # Tâche de migration de la base de données
+  migrate:
+    image: getlago/api:latest
+    container_name: automatic_lago_migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    # Cette commande exécute les migrations et quitte
+    command: "bundle exec rails db:migrate"
+    environment:
+      DATABASE_URL: postgresql://lago:password@db:5432/lago_development
+      REDIS_URL: redis://redis:6379
+      RAILS_ENV: "development"
+
+  # API principale de Lago (backend Rails)
+  api:
+    image: getlago/api:latest
+    container_name: automatic_lago_api
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    command: "bundle exec rails s -b '0.0.0.0' -p 3000"
+    ports:
+      # Port 3001 exposé sur l'hôte, mappé au port 3000 de l'API
+      - "3001:3000"
+    environment:
+      DATABASE_URL: postgresql://lago:password@db:5432/lago_development
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY_BASE: "un-secret-tres-long-et-aleatoire-pour-le-developpement-lago"
+      RAILS_ENV: "development"
+      LAGO_API_URL: "http://localhost:3001"
+      LAGO_FRONT_URL: "http://localhost:8081"
+
+  # Worker Sidekiq pour les tâches de fond
+  api-worker:
+    image: getlago/api:latest
+    container_name: automatic_lago_worker
+    restart: unless-stopped
+    depends_on:
+      - api
+    command: "bundle exec sidekiq"
+    environment:
+      DATABASE_URL: postgresql://lago:password@db:5432/lago_development
+      REDIS_URL: redis://redis:6379
+      RAILS_ENV: "development"
+
+  # Interface utilisateur de Lago (frontend)
+  front:
+    image: getlago/front:latest
+    container_name: automatic_lago_front
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      # Port 8081 exposé sur l'hôte pour l'interface web
+      - "8081:80"
+    environment:
+      # L'URL de l'API est le nom du service Docker pour la communication interne
+      API_URL: "http://api:3000"
+      APP_ENV: "development"
+
+volumes:
+  lago_postgres_data:
+    name: automatic_lago_pg_data
+  lago_redis_data:
+    name: automatic_lago_redis_data

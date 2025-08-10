@@ -1,0 +1,127 @@
+# /docker/supabase/docker-compose.yml
+# Configuration TRES simplifiée pour Supabase pour le projet AUTOMATIC.
+# ATTENTION : De nombreux services et configurations ont été retirés pour rendre ce fichier autonome.
+# Il fournit les services de base (base de données, authentification, API) mais nécessiterait
+# une configuration plus avancée pour une utilisation complète.
+
+version: '3.8'
+
+services:
+  # Base de données PostgreSQL
+  db:
+    image: supabase/postgres:15.1.0.114
+    container_name: automatic_supabase_db
+    restart: unless-stopped
+    ports:
+      # Port 54322 exposé pour éviter les conflits avec d'autres instances
+      - "54322:5432"
+    volumes:
+      - supabase_pg_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=supabase
+      - POSTGRES_PASSWORD=automatic_password_123
+      - POSTGRES_DB=postgres
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "supabase", "-d", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Gateway Kong - Point d'entrée pour les APIs
+  kong:
+    image: kong:2.8.1
+    container_name: automatic_supabase_kong
+    restart: unless-stopped
+    ports:
+      # Le port 8000 est le point d'entrée public pour les APIs
+      - "8000:8000"
+      - "8443:8443"
+    environment:
+      - KONG_DATABASE=off
+      - KONG_DECLARATIVE_CONFIG=/var/lib/kong/kong.yml
+      - KONG_DNS_ORDER=LAST,A,CNAME
+      - KONG_PLUGINS=request-transformer,cors,key-auth,acl
+    # Note: Une configuration de routes dans un fichier kong.yml est normalement nécessaire ici.
+
+  # Service d'authentification GoTrue
+  auth:
+    image: supabase/gotrue:v2.128.0
+    container_name: automatic_supabase_auth
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      - GOTRUE_API_HOST=0.0.0.0
+      - GOTRUE_API_PORT=9999
+      - GOTRUE_DB_DRIVER=postgres
+      - GOTRUE_DB_DATABASE_URL=postgres://supabase:automatic_password_123@db:5432/postgres
+      - GOTRUE_SITE_URL=http://localhost:3000
+      - GOTRUE_JWT_SECRET=secret-jwt-a-remplacer-absolument-32-chars
+      - GOTRUE_MAILER_AUTOCONFIRM=true
+
+  # Service REST PostgREST
+  rest:
+    image: postgrest/postgrest:v11.2.2
+    container_name: automatic_supabase_rest
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      - PGRST_DB_URI=postgres://supabase:automatic_password_123@db:5432/postgres
+      - PGRST_DB_SCHEMAS=public,storage
+      - PGRST_DB_ANON_ROLE=anon
+      - PGRST_JWT_SECRET=secret-jwt-a-remplacer-absolument-32-chars
+
+  # Service Realtime
+  realtime:
+    image: supabase/realtime:v2.24.2
+    container_name: automatic_supabase_realtime
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      - PORT=4000
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=supabase
+      - DB_PASSWORD=automatic_password_123
+      - DB_NAME=postgres
+      - API_JWT_SECRET=secret-jwt-a-remplacer-absolument-32-chars
+
+  # Service de stockage de fichiers
+  storage:
+    image: supabase/storage-api:v0.40.3
+    container_name: automatic_supabase_storage
+    restart: unless-stopped
+    depends_on:
+      - db
+      - rest
+    environment:
+      - DATABASE_URL=postgres://supabase:automatic_password_123@db:5432/postgres
+      - POSTGREST_URL=http://rest:3000
+      - FILE_SIZE_LIMIT=52428800
+      - STORAGE_BACKEND=file
+      - FILE_STORAGE_BACKEND_PATH=/var/lib/storage
+      - TENANT_ID=stub
+      - ANON_KEY= # Remplacer par la clé anon de .env.example
+      - SERVICE_KEY= # Remplacer par la clé service_role de .env.example
+
+  # Dashboard Supabase Studio
+  studio:
+    image: supabase/studio:latest
+    container_name: automatic_supabase_studio
+    restart: unless-stopped
+    depends_on:
+      - rest
+    ports:
+      # Port 8082 pour le dashboard Supabase Studio pour éviter les conflits
+      - "8082:3000"
+    environment:
+      - SUPABASE_URL=http://kong:8000
+      - SUPABASE_PUBLIC_URL=http://localhost:8000
+      - SUPABASE_ANON_KEY= # Remplacer par la clé anon
+      - SUPABASE_SERVICE_KEY= # Remplacer par la clé service_role
+
+volumes:
+  supabase_pg_data:
+    name: automatic_supabase_pg_data

@@ -60,16 +60,27 @@ Nous croyons en la puissance de l'open source. AUTOMATIC est construit sur une s
     ```bash
     cp .env.example .env.local
     ```
-4.  **Lancez les services backend** :
-    Cette commande démarrera Supabase, Lago, DocuSeal et Novu via Docker.
+4.  **Lancez l'environnement backend** :
+    Le projet utilise une approche modulaire pour les services Docker. Chaque service (Supabase, Lago, etc.) a sa propre configuration dans un sous-dossier de `/docker`. Pour simplifier le lancement, des scripts de contrôle sont fournis.
+
+    Rendez les scripts exécutables (à faire une seule fois) :
     ```bash
-    docker-compose up -d
+    chmod +x docker/start-all.sh
+    chmod +x docker/stop-all.sh
     ```
-5.  **Démarrez le serveur de développement** :
-    L'application sera accessible sur `http://localhost:3000`.
+
+    Puis, lancez tous les services en arrière-plan :
+    ```bash
+    ./docker/start-all.sh
+    ```
+    Cette commande va parcourir chaque service et lancer son `docker-compose up -d`. Pour tout arrêter, utilisez `./docker/stop-all.sh`.
+
+5.  **Démarrez le serveur de développement Next.js** :
+    Une fois les services backend en cours d'exécution, lancez l'application web :
     ```bash
     npm run dev
     ```
+    L'application sera accessible sur `http://localhost:3000`.
 
 ## Structure des Dossiers
 

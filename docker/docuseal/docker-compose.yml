@@ -1,0 +1,53 @@
+# /docker/docuseal/docker-compose.yml
+# Configuration pour DocuSeal - un service de signature électronique auto-hébergé.
+# Cette configuration est autonome et conçue pour le développement local au sein du projet AUTOMATIC.
+
+version: '3.8'
+
+services:
+  # Service principal de l'application DocuSeal
+  app:
+    image: docuseal/docuseal:latest
+    container_name: automatic_docuseal_app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # Le port 8080 est exposé sur l'hôte pour accéder à l'interface DocuSeal.
+      # Le port interne de l'application est 3000.
+      - "8080:3000"
+    volumes:
+      # Volume pour la persistance des données de l'application (documents, etc.)
+      - docuseal_app_data:/data/docuseal
+    environment:
+      # URL de connexion à la base de données PostgreSQL
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/docuseal
+      # Pour le développement local, nous n'forçons pas le SSL.
+      - FORCE_SSL=false
+      - RAILS_ENV=development
+
+  # Service de la base de données PostgreSQL pour DocuSeal
+  postgres:
+    image: postgres:15-alpine
+    container_name: automatic_docuseal_db
+    restart: unless-stopped
+    volumes:
+      # Volume pour la persistance des données de la base de données
+      - docuseal_pg_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password # Mot de passe simple pour le dev local
+      POSTGRES_DB: docuseal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d docuseal"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+# Définition des volumes nommés pour garantir la persistance des données
+volumes:
+  docuseal_app_data:
+    name: automatic_docuseal_app_data
+  docuseal_pg_data:
+    name: automatic_docuseal_pg_data
