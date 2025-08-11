@@ -12,11 +12,17 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      // Étendez le thème ici si nécessaire
-      // Par exemple, pour ajouter des couleurs personnalisées :
-      // colors: {
-      //   'primary': '#1DA1F2',
-      // },
+      // Ajout de la palette de couleurs et des polices personnalisées du projet AUTOMATIC
+      colors: {
+        'deep-space-blue': '#0A192F',
+        'kinetic-cyan': '#64FFDA',
+        'slate-light': '#CCD6F6',
+        'slate-dark': '#8892B0',
+      },
+      fontFamily: {
+        sans: ['var(--font-inter)'],
+        mono: ['var(--font-poppins)'],
+      },
     },
   },
   plugins: [],
