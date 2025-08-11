@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Poppins } from 'next/font/google';
+import { Toaster } from 'sonner';
 import "../styles/globals.css";
 
 // Configuration des polices d'écriture via next/font
@@ -36,6 +37,22 @@ export default function RootLayout({
       <body className="font-sans bg-deep-space-blue text-slate-light selection:bg-kinetic-cyan selection:text-deep-space-blue">
         {/* Contenu des pages enfants sera injecté ici */}
         <main>{children}</main>
+        <Toaster
+          position="top-right"
+          richColors
+          toastOptions={{
+            style: {
+              background: '#1E293B', // slate-800
+              borderColor: '#334155', // slate-700
+              color: '#E2E8F0', // slate-200
+            },
+            classNames: {
+              toast: 'font-sans',
+              title: 'text-white',
+              description: 'text-slate-400',
+            }
+          }}
+        />
       </body>
     </html>
   );

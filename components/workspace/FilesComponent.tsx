@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase-client';
 import { Button } from '@/components/Button';
 import type { User } from '@supabase/supabase-js';
+import { toast } from 'sonner';
 
 // Type pour les fichiers de projet
 interface ProjectFile {
@@ -20,7 +21,6 @@ export default function FilesComponent({ projectId, user, userRole }: { projectI
   const supabase = createClient();
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Récupération initiale des fichiers
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function FilesComponent({ projectId, user, userRole }: { projectI
 
       if (error) {
         console.error('Erreur de chargement des fichiers:', error);
-        setError('Impossible de charger la liste des fichiers.');
+        toast.error("Erreur de chargement", { description: "Impossible de charger la liste des fichiers." });
       } else {
         setFiles(data as ProjectFile[]);
       }
@@ -44,7 +44,6 @@ export default function FilesComponent({ projectId, user, userRole }: { projectI
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setUploading(true);
-      setError(null);
       if (!event.target.files || event.target.files.length === 0 || !user) {
         throw new Error('Vous devez sélectionner un fichier à uploader.');
       }
@@ -53,14 +52,12 @@ export default function FilesComponent({ projectId, user, userRole }: { projectI
       const fileName = `${Date.now()}_${file.name}`;
       const filePath = `${projectId}/${fileName}`;
 
-      // 1. Uploader le fichier sur Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('project-files')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // 2. Insérer les métadonnées dans la table `project_files`
       const { data: newFile, error: insertError } = await supabase
         .from('project_files')
         .insert({
@@ -74,14 +71,15 @@ export default function FilesComponent({ projectId, user, userRole }: { projectI
 
       if (insertError) throw insertError;
 
-      // 3. Mettre à jour l'état local
       setFiles((currentFiles) => [newFile as ProjectFile, ...currentFiles]);
+      toast.success("Succès", { description: `Le fichier "${file.name}" a été uploadé.` });
 
     } catch (error: any) {
       console.error('Erreur upload:', error);
-      setError(error.message);
+      toast.error("Erreur d'upload", { description: error.message });
     } finally {
       setUploading(false);
+      event.target.value = ''; // Reset file input
     }
   };
 
@@ -94,7 +92,7 @@ export default function FilesComponent({ projectId, user, userRole }: { projectI
       window.open(data.signedUrl, '_blank');
     } catch (error: any) {
       console.error('Erreur de téléchargement:', error);
-      setError(`Impossible de télécharger le fichier: ${error.message}`);
+      toast.error("Erreur", { description: `Impossible de télécharger le fichier.` });
     }
   };
 
@@ -113,17 +111,15 @@ export default function FilesComponent({ projectId, user, userRole }: { projectI
             disabled={uploading}
             className="text-sm text-slate-light file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-kinetic-cyan file:text-deep-space-blue hover:file:bg-kinetic-cyan/90 disabled:opacity-50"
           />
-          {uploading && <p className="text-sm text-kinetic-cyan mt-2">Upload en cours...</p>}
+          {uploading && <p className="text-sm text-kinetic-cyan mt-2 animate-pulse">Upload en cours...</p>}
         </div>
       )}
-
-      {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
       <ul className="space-y-3">
         {files.length > 0 ? files.map((file) => (
           <li key={file.id} className="flex justify-between items-center bg-deep-space-blue/50 p-3 rounded-md">
             <div>
-              <p className="font-semibold text-slate-light">{file.file_name}</p>
+              <p className="font-semibold text-slate-light truncate max-w-[150px] sm:max-w-full">{file.file_name}</p>
               <p className="text-xs text-slate-dark">
                 Par {file.profiles?.full_name || 'Admin'} le {new Date(file.created_at).toLocaleDateString('fr-FR')}
               </p>
@@ -133,7 +129,7 @@ export default function FilesComponent({ projectId, user, userRole }: { projectI
             </Button>
           </li>
         )) : (
-          <p className="text-slate-dark text-center py-4">Aucun fichier pour ce projet.</p>
+          !uploading && <p className="text-slate-dark text-center py-4">Aucun fichier pour ce projet.</p>
         )}
       </ul>
     </div>
