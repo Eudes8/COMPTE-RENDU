@@ -1,33 +1,82 @@
 'use client';
 
 import { toast } from 'sonner';
-import { createProjectAction } from './actions';
+import { initiateOnboardingAction } from './actions';
 import { SubmitButton } from '@/components/SubmitButton';
+import { Input } from '@/components/Input';
+import { useState } from 'react';
 
-// Définition du type pour un devis pour plus de sécurité
 type Quote = {
   id: number;
   created_at: string;
   client_email: string;
   project_details: any;
+  price: number | null;
+  status: string;
 };
 
 /**
- * Composant côté client qui affiche la liste des devis et gère les interactions
- * (soumission du formulaire, affichage des notifications toast).
+ * Composant pour un seul devis dans la liste de l'admin.
+ * Gère l'état local du prix et l'appel à l'action d'onboarding.
  */
-export default function QuoteList({ quotes }: { quotes: Quote[] }) {
+function QuoteItem({ quote }: { quote: Quote }) {
+  const [price, setPrice] = useState(quote.price || '');
 
-  // Fonction qui enveloppe l'action serveur pour gérer la réponse
   const handleFormAction = async (formData: FormData) => {
-    const result = await createProjectAction(formData);
+    // Ajouter le prix au FormData avant de l'envoyer
+    formData.append('price', price.toString());
+
+    const result = await initiateOnboardingAction(formData);
     if (result?.error) {
       toast.error("Erreur", { description: result.error });
     } else {
-      toast.success("Succès", { description: `Le projet a été créé avec succès (ID: ${result.newProjectId}).` });
+      toast.success("Succès", { description: result.message });
     }
   };
 
+  const isOnboardingStarted = quote.status !== 'nouveau' && quote.status !== 'rejeté';
+
+  return (
+    <li className="p-4 bg-deep-space-blue rounded-md border border-slate-dark/30 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+      <div className="flex-grow">
+        <p className="font-semibold text-slate-light">{quote.client_email}</p>
+        <p className="text-sm text-slate-dark">
+          Reçu le: {new Date(quote.created_at).toLocaleDateString('fr-FR')} | Statut: <span className="font-semibold text-kinetic-cyan">{quote.status}</span>
+        </p>
+        <details className="mt-2 text-xs">
+          <summary className="cursor-pointer text-kinetic-cyan hover:underline">Voir les détails</summary>
+          <pre className="mt-2 p-3 bg-black/30 rounded text-slate-light whitespace-pre-wrap text-xs">
+            {JSON.stringify(quote.project_details, null, 2)}
+          </pre>
+        </details>
+      </div>
+
+      {!isOnboardingStarted && (
+        <form action={handleFormAction} className="flex items-center gap-2 self-end sm:self-center">
+          <input type="hidden" name="quoteId" value={quote.id} />
+          <Input
+            type="number"
+            name="priceInput"
+            placeholder="Prix (en €)"
+            className="w-32 h-9"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            required
+          />
+          <SubmitButton size="sm" loadingText="Envoi...">
+            Lancer l'Onboarding
+          </SubmitButton>
+        </form>
+      )}
+    </li>
+  );
+}
+
+
+/**
+ * Composant principal qui affiche la liste des devis.
+ */
+export default function QuoteList({ quotes }: { quotes: Quote[] }) {
   if (!quotes || quotes.length === 0) {
     return <p className="text-slate-dark">Aucun nouveau devis pour le moment.</p>;
   }
@@ -35,28 +84,7 @@ export default function QuoteList({ quotes }: { quotes: Quote[] }) {
   return (
     <ul className="space-y-4">
       {quotes.map((quote) => (
-        <li key={quote.id} className="p-4 bg-deep-space-blue rounded-md border border-slate-dark/30 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-          <div className="flex-grow">
-            <p className="font-semibold text-slate-light">{quote.client_email}</p>
-            <p className="text-sm text-slate-dark">
-              Reçu le: {new Date(quote.created_at).toLocaleDateString('fr-FR')}
-            </p>
-            <details className="mt-2 text-xs">
-              <summary className="cursor-pointer text-kinetic-cyan hover:underline">
-                Voir les détails du projet
-              </summary>
-              <pre className="mt-2 p-3 bg-black/30 rounded text-slate-light whitespace-pre-wrap text-xs">
-                {JSON.stringify(quote.project_details, null, 2)}
-              </pre>
-            </details>
-          </div>
-          <form action={handleFormAction} className="self-end sm:self-center">
-            <input type="hidden" name="quoteId" value={quote.id} />
-            <SubmitButton size="sm" loadingText="Création...">
-              Créer le Projet
-            </SubmitButton>
-          </form>
-        </li>
+        <QuoteItem key={quote.id} quote={quote} />
       ))}
     </ul>
   );
