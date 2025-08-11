@@ -5,6 +5,8 @@ import { initiateOnboardingAction } from './actions';
 import { SubmitButton } from '@/components/SubmitButton';
 import { Input } from '@/components/Input';
 import { useState } from 'react';
+import { EmptyState } from '@/components/EmptyState';
+import { IconQuote } from '@/components/icons/IconQuote';
 
 type Quote = {
   id: number;
@@ -15,15 +17,10 @@ type Quote = {
   status: string;
 };
 
-/**
- * Composant pour un seul devis dans la liste de l'admin.
- * Gère l'état local du prix et l'appel à l'action d'onboarding.
- */
 function QuoteItem({ quote }: { quote: Quote }) {
   const [price, setPrice] = useState(quote.price || '');
 
   const handleFormAction = async (formData: FormData) => {
-    // Ajouter le prix au FormData avant de l'envoyer
     formData.append('price', price.toString());
 
     const result = await initiateOnboardingAction(formData);
@@ -34,7 +31,7 @@ function QuoteItem({ quote }: { quote: Quote }) {
     }
   };
 
-  const isOnboardingStarted = quote.status !== 'nouveau' && quote.status !== 'rejeté';
+  const isOnboardingStarted = quote.status !== 'nouveau';
 
   return (
     <li className="p-4 bg-deep-space-blue rounded-md border border-slate-dark/30 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -72,13 +69,15 @@ function QuoteItem({ quote }: { quote: Quote }) {
   );
 }
 
-
-/**
- * Composant principal qui affiche la liste des devis.
- */
 export default function QuoteList({ quotes }: { quotes: Quote[] }) {
   if (!quotes || quotes.length === 0) {
-    return <p className="text-slate-dark">Aucun nouveau devis pour le moment.</p>;
+    return (
+        <EmptyState
+            icon={<IconQuote className="h-8 w-8" />}
+            title="Aucun nouveau devis"
+            message="Dès qu'un nouveau devis est soumis via le site public, il apparaîtra ici prêt à être traité."
+        />
+    );
   }
 
   return (

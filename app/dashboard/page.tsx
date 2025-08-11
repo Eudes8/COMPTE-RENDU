@@ -3,8 +3,12 @@ import { createServer } from '@/lib/supabase-client';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/Button';
+import { EmptyState } from '@/components/EmptyState';
 
-// Helper pour le statut des projets
+const IconProject = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+);
+
 const getProjectStatusClass = (status: string) => {
     switch (status) {
       case 'actif': return 'bg-green-500/20 text-green-400';
@@ -14,11 +18,8 @@ const getProjectStatusClass = (status: string) => {
     }
 };
 
-// Composant pour afficher le statut de l'onboarding
 const OnboardingStatus = ({ quotes }: { quotes: any[] }) => {
-  if (!quotes || quotes.length === 0) {
-    return null;
-  }
+  if (!quotes || quotes.length === 0) return null;
   return (
     <div className="mb-8 bg-yellow-900/50 border border-yellow-500/50 rounded-lg p-6">
       <h2 className="text-xl font-semibold text-yellow-300 mb-4">Onboarding en cours</h2>
@@ -49,7 +50,6 @@ export default async function DashboardPage() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) redirect('/login');
 
-  // Récupérer en parallèle les projets et les devis en cours d'onboarding
   const [projectsResult, quotesResult] = await Promise.all([
     supabase.from('projects').select('id, name, status').eq('client_id', session.user.id).order('created_at', { ascending: false }),
     supabase.from('quotes').select('id, status, lago_invoice_payment_url').in('status', ['contrat_envoye', 'contrat_signe', 'facture_payee']).eq('client_email', session.user.email!).order('created_at', { ascending: false })
@@ -89,8 +89,14 @@ export default async function DashboardPage() {
             ))}
           </div>
         ) : (
-          <p className="text-slate-dark">Vous n'avez aucun projet pour le moment.</p>
+          !projectsError && <EmptyState
+            icon={<IconProject />}
+            title="Aucun projet actif"
+            message="Vos projets apparaîtront ici une fois que le processus d'onboarding sera terminé."
+            cta={{ text: "Lancer un nouveau devis", href: "/devis" }}
+          />
         )}
+         {projectsError && <p className="text-red-500 text-center py-8">Impossible de charger vos projets pour le moment.</p>}
       </div>
     </div>
   );
