@@ -37,7 +37,7 @@ services:
 
   auth:
     container_name: supabase_auth_automatic
-    image: supabase/gotrue:v2.138.2 # This version might need updating if problematic
+    image: supabase/gotrue:v2.140.0 # This version might need updating if problematic
     restart: unless-stopped
     environment:
       API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://localhost:8000}
