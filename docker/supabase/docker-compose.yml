@@ -1,0 +1,99 @@
+services:
+  db:
+    image: supabase/postgres:15.1.0.118
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    volumes:
+      - ./volumes/db:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'postgres', '-d', 'postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kong:
+    image: kong/kong:3.6.1
+    restart: always
+    environment:
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=db
+      - KONG_PG_USER=postgres
+      - KONG_PG_PASSWORD=postgres
+      - KONG_PROXY_LISTEN=0.0.0.0:8000
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+    ports:
+      - '8000:8000'
+      - '8001:8001'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  gotrue:
+    image: supabase/gotrue:v2.138.2
+    restart: always
+    environment:
+      - GOTRUE_API_HOST=0.0.0.0
+      - GOTRUE_API_PORT=9999
+      - GOTRUE_DB_DRIVER=postgres
+      - GOTRUE_DB_DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+      - GOTRUE_JWT_SECRET=thisisareallylongandsecretstring
+      - GOTRUE_JWT_EXP=3600
+    depends_on:
+      db:
+        condition: service_healthy
+
+  postgrest:
+    image: postgrest/postgrest:v12.0.2
+    restart: always
+    environment:
+      - PGRST_DB_URI=postgres://postgres:postgres@db:5432/postgres
+      - PGRST_DB_SCHEMA=public,storage
+      - PGRST_DB_ANON_ROLE=anon
+    depends_on:
+      db:
+        condition: service_healthy
+
+  realtime:
+    image: supabase/realtime:v2.25.3
+    restart: always
+    environment:
+      - REALTIME_POSTGRES_HOST=db
+      - REALTIME_POSTGRES_PORT=5432
+      - REALTIME_POSTGRES_USER=postgres
+      - REALTIME_POSTGRES_PASSWORD=postgres
+      - REALTIME_POSTGRES_DB=postgres
+      - REALTIME_PORT=4000
+      - REALTIME_HOST=0.0.0.0
+    depends_on:
+      db:
+        condition: service_healthy
+
+  storage:
+    image: supabase/storage-api:v1.2.0
+    restart: always
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+      - TENANT_ID=stub
+      - REGION=stub
+      - GLOBAL_S3_BUCKET=stub
+    depends_on:
+      db:
+        condition: service_healthy
+
+  studio:
+    image: supabase/studio:20240322
+    restart: always
+    ports:
+      - '8082:8082'
+    depends_on:
+      db:
+        condition: service_healthy
+      kong:
+        condition: service_started
+
+volumes:
+  db:

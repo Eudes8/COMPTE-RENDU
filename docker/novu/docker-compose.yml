@@ -1,0 +1,98 @@
+# /docker/novu/docker-compose.yml
+# Configuration minimale pour Novu - un service de notifications auto-hébergé.
+# Cette configuration est construite sur la base de la documentation officielle
+# et est adaptée pour le développement local au sein du projet AUTOMATIC.
+
+version: '3.8'
+
+services:
+  # Base de données MongoDB pour Novu
+  mongo:
+    image: mongo:6.0
+    container_name: automatic_novu_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - novu_mongo_data:/data/db
+
+  # Cache et file d'attente Redis pour Novu
+  redis:
+    image: redis:7-alpine
+    container_name: automatic_novu_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - novu_redis_data:/data
+
+  # API principale de Novu
+  api:
+    image: ghcr.io/novuhq/novu/api:latest
+    container_name: automatic_novu_api
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - redis
+    ports:
+      # Port 3003 exposé sur l'hôte pour éviter les conflits
+      - "3003:3000"
+    environment:
+      - NODE_ENV=production
+      - MONGO_URL=mongodb://mongo:27017/novu
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=un-secret-jwt-tres-securise
+      - SENTRY_DSN=
+      - LAUNCH_DARKLY_SDK_KEY=
+      - PORT=3000
+
+  # Serveur WebSocket de Novu
+  ws:
+    image: ghcr.io/novuhq/novu/ws:latest
+    container_name: automatic_novu_ws
+    restart: unless-stopped
+    depends_on:
+      - redis
+    ports:
+      # Port 3004 exposé sur l'hôte
+      - "3004:3002"
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=un-secret-jwt-tres-securise
+      - PORT=3002
+
+  # Worker pour les tâches de fond de Novu
+  worker:
+    image: ghcr.io/novuhq/novu/worker:latest
+    container_name: automatic_novu_worker
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      - NODE_ENV=production
+      - MONGO_URL=mongodb://mongo:27017/novu
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=un-secret-jwt-tres-securise
+      - SENTRY_DSN=
+      - LAUNCH_DARKLY_SDK_KEY=
+
+  # Tableau de bord (Dashboard) de Novu
+  dashboard:
+    image: ghcr.io/novuhq/novu/dashboard:latest
+    container_name: automatic_novu_dashboard
+    restart: unless-stopped
+    ports:
+      # Le dashboard Novu sera accessible sur http://localhost:4000
+      - "4000:4000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3003
+      - REACT_APP_WS_URL=ws://localhost:3004
+      - REACT_APP_SENTRY_DSN=
+
+volumes:
+  novu_mongo_data:
+    name: automatic_novu_mongo_data
+  novu_redis_data:
+    name: automatic_novu_redis_data

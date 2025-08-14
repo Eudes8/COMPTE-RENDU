@@ -1,0 +1,15 @@
+/* Importation des couches de base de Tailwind CSS. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Ce fichier est l'endroit idéal pour ajouter des styles globaux personnalisés.
+  Par exemple, vous pouvez définir des styles pour la balise `body` ou
+  créer des classes utilitaires réutilisables.
+
+  Exemple :
+  body {
+    font-family: 'Inter', sans-serif;
+  }
+*/
