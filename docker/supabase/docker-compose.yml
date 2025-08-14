@@ -1,101 +1,136 @@
-version: '3.8'
+# Supabase Docker Compose file
+# This is a replacement with the official Supabase configuration for stability.
+
+name: supabase-automatic
 
 services:
-  db:
-    image: supabase/postgres:15.1.0.118
-    restart: always
+  studio:
+    container_name: supabase_studio_automatic
+    image: supabase/studio:20240726-c877bb8
+    restart: unless-stopped
+    ports:
+      - "4000:3000" # Exposing Studio on a different port to avoid conflicts
     environment:
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:-http://localhost:8000}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+    depends_on:
+      - meta
+
+  kong:
+    container_name: supabase_kong_automatic
+    image: kong/kong:3.6.1
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl
+    volumes:
+      - ./kong.yml:/var/lib/kong/kong.yml
+
+  auth:
+    container_name: supabase_auth_automatic
+    image: supabase/gotrue:v2.138.2 # This version might need updating if problematic
+    restart: unless-stopped
+    environment:
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://localhost:8000}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgresql://supabase_auth_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@db:5432/postgres
+      GOTRUE_SITE_URL: ${SITE_URL:-http://localhost:3000}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters-long}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+    depends_on:
+      - db
+
+  rest:
+    container_name: supabase_rest_automatic
+    image: postgrest/postgrest:v12.0.2
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgresql://authenticator:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public,storage,graphql
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters-long}
+    depends_on:
+      - db
+
+  realtime:
+    container_name: supabase_realtime_automatic
+    image: supabase/realtime:v2.27.3
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}
+      DB_NAME: postgres
+      API_JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters-long}
+    depends_on:
+      - db
+
+  storage:
+    container_name: supabase_storage_automatic
+    image: supabase/storage-api:v1.0.4
+    restart: unless-stopped
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters-long}
+      DATABASE_URL: postgresql://supabase_storage_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@db:5432/postgres
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+    volumes:
+      - ./volumes/storage:/var/lib/storage
+    depends_on:
+      - db
+      - rest
+
+  meta:
+    container_name: supabase_meta_automatic
+    image: supabase/postgres-meta:v0.80.0
+    restart: unless-stopped
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: supabase_admin
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}
+    depends_on:
+      - db
+
+  db:
+    container_name: supabase_db_automatic
+    image: supabase/postgres:15.1.0.118
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
     volumes:
       - ./volumes/db:/var/lib/postgresql/data
-    ports:
-      - '5432:5432'
+    environment:
+      POSTGRES_USER: supabase_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}
+      POSTGRES_DB: postgres
+      # This is required to init the db with all required tables and roles
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters-long}
     healthcheck:
-      test: ['CMD', 'pg_isready', '-U', 'postgres', '-d', 'postgres']
+      test: ["CMD-SHELL", "pg_isready -U supabase_admin -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  kong:
-    image: kong/kong:3.6.1
-    restart: always
-    environment:
-      - KONG_DATABASE=postgres
-      - KONG_PG_HOST=db
-      - KONG_PG_USER=postgres
-      - KONG_PG_PASSWORD=postgres
-      - KONG_PROXY_LISTEN=0.0.0.0:8000
-      - KONG_ADMIN_LISTEN=0.0.0.0:8001
-    ports:
-      - '8000:8000'
-      - '8001:8001'
-    depends_on:
-      db:
-        condition: service_healthy
-
-  gotrue:
-    image: supabase/gotrue:v2.138.2
-    restart: always
-    environment:
-      - GOTRUE_API_HOST=0.0.0.0
-      - GOTRUE_API_PORT=9999
-      - GOTRUE_DB_DRIVER=postgres
-      - GOTRUE_DB_DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
-      - GOTRUE_JWT_SECRET=thisisareallylongandsecretstring
-      - GOTRUE_JWT_EXP=3600
-    depends_on:
-      db:
-        condition: service_healthy
-
-  postgrest:
-    image: postgrest/postgrest:v12.0.2
-    restart: always
-    environment:
-      - PGRST_DB_URI=postgres://postgres:postgres@db:5432/postgres
-      - PGRST_DB_SCHEMA=public,storage
-      - PGRST_DB_ANON_ROLE=anon
-    depends_on:
-      db:
-        condition: service_healthy
-
-  realtime:
-    image: supabase/realtime:v2.25.3
-    restart: always
-    environment:
-      - REALTIME_POSTGRES_HOST=db
-      - REALTIME_POSTGRES_PORT=5432
-      - REALTIME_POSTGRES_USER=postgres
-      - REALTIME_POSTGRES_PASSWORD=postgres
-      - REALTIME_POSTGRES_DB=postgres
-      - REALTIME_PORT=4000
-      - REALTIME_HOST=0.0.0.0
-    depends_on:
-      db:
-        condition: service_healthy
-
-  storage:
-    image: supabase/storage-api:v1.2.0
-    restart: always
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
-      - TENANT_ID=stub
-      - REGION=stub
-      - GLOBAL_S3_BUCKET=stub
-    depends_on:
-      db:
-        condition: service_healthy
-
-  studio:
-    image: supabase/studio:20240322
-    restart: always
-    ports:
-      - '8082:8082'
-    depends_on:
-      db:
-        condition: service_healthy
-      kong:
-        condition: service_started
-
 volumes:
   db:
+  storage:

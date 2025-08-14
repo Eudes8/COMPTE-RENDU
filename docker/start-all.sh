@@ -20,7 +20,7 @@ for SERVICE in "${SERVICES[@]}"; do
         echo "--> Démarrage de : ${SERVICE}"
         echo "--------------------------------------------------"
         # Se déplace dans le dossier du service et lance docker-compose
-        (cd "$SERVICE" && docker-compose up -d)
+        (cd "$SERVICE" && docker compose up -d)
         echo "--> ${SERVICE} démarré."
     else
         echo "Attention : Le service ${SERVICE} ou son fichier docker-compose.yml est introuvable."

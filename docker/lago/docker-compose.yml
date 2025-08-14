@@ -34,7 +34,7 @@ services:
 
   # Tâche de migration de la base de données
   migrate:
-    image: lagohq/lago-api:latest
+    image: getlago/api:v1.32.4
     container_name: automatic_lago_migrate
     depends_on:
       db:
@@ -48,7 +48,7 @@ services:
 
   # API principale de Lago (backend Rails)
   api:
-    image: lagohq/lago-api:latest
+    image: getlago/api:v1.32.4
     container_name: automatic_lago_api
     restart: unless-stopped
     depends_on:
@@ -70,7 +70,7 @@ services:
 
   # Worker Sidekiq pour les tâches de fond
   api-worker:
-    image: lagohq/lago-api:latest
+    image: getlago/api:v1.32.4
     container_name: automatic_lago_worker
     restart: unless-stopped
     depends_on:
@@ -83,7 +83,7 @@ services:
 
   # Interface utilisateur de Lago (frontend)
   front:
-    image: lagohq/lago-front:latest
+    image: getlago/front:v1.32.4
     container_name: automatic_lago_front
     restart: unless-stopped
     depends_on:
